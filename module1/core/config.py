@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     osd_min_confidence: float = 0.5
     orientation_probe_max_side: int = 600
 
+    # OCR quality escalation (multi-pass for small/difficult text)
+    ocr_escalation_enabled: bool = True
+    ocr_escalation_min_solid_words: int = 12
+    ocr_escalation_scale: float = 2.0
+    ocr_dpi_hint: int = 300
+
     # Preprocessing
     apply_denoise: bool = True
     apply_clahe: bool = True

@@ -6,6 +6,8 @@ import pytesseract
 from pytesseract import Output
 
 ROTATION_SCORE_MARGIN = 2.0
+PRIMARY_ORIENTATION_PSM = 3
+SECONDARY_ORIENTATION_PSM = 11
 
 
 def rotate_image(image: np.ndarray, degrees_cw: int) -> np.ndarray:
@@ -93,18 +95,40 @@ def detect_orientation(
     if osd_degrees is not None and osd_confidence >= min_osd_confidence:
         return osd_degrees
 
-    config = f"--oem 3 --psm {psm}"
-    scores = {
-        candidate: score_orientation(small, candidate, lang, config)
-        for candidate in (0, 90, 180, 270)
-    }
-    best = max(scores, key=lambda c: (scores[c], -c))
-    if best != 0:
+    candidates = (0, 90, 180, 270)
+
+    def scores_for_psm(probe_psm: int) -> dict[int, float]:
+        config = f"--oem 3 --psm {probe_psm}"
+        return {
+            candidate: score_orientation(small, candidate, lang, config)
+            for candidate in candidates
+        }
+
+    primary_scores = scores_for_psm(PRIMARY_ORIENTATION_PSM)
+    primary_best = max(primary_scores, key=lambda c: (primary_scores[c], -c))
+    primary_is_strong = (
+        primary_scores[primary_best]
+        >= ROTATION_SCORE_MARGIN
+        * max(max(score for candidate, score in primary_scores.items() if candidate != primary_best), 1.0)
+    )
+    if primary_is_strong:
+        return primary_best
+
+    secondary_scores = scores_for_psm(SECONDARY_ORIENTATION_PSM)
+    secondary_best = max(secondary_scores, key=lambda c: (secondary_scores[c], -c))
+    secondary_is_strong = (
+        secondary_best != 0
+        and secondary_scores[secondary_best] >= ROTATION_SCORE_MARGIN * max(secondary_scores[0], 1.0)
+    )
+    if secondary_is_strong:
+        return secondary_best
+
+    if primary_best != 0:
         if osd_degrees == 0:
             return 0
-        if scores[best] < ROTATION_SCORE_MARGIN * max(scores[0], 1.0):
+        if primary_scores[primary_best] < ROTATION_SCORE_MARGIN * max(primary_scores[0], 1.0):
             return 0
-        return best
+        return primary_best
     if osd_degrees is not None:
         return osd_degrees
     return 0

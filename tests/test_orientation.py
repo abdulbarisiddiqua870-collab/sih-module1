@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import pytest
 
+import module1.ocr.orientation as orientation_module
 from module1.ocr.engine import OcrEngine
 from module1.ocr.orientation import detect_orientation, map_bbox_to_original, rotate_image
 from tests.conftest import label_png_bytes, requires_tesseract
@@ -44,6 +45,49 @@ def test_rotate_image_dimensions():
 def test_detect_orientation_all_rotations(degrees):
     rotated = rotate_image(base_image(), degrees)
     assert detect_orientation(rotated, lang="eng", psm=3) == (360 - degrees) % 360
+
+
+@requires_tesseract
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [
+        ("PHOTO-2026-08-26-10-51-19.jpg", 270),
+        ("PHOTO-2026-08-26-10-52-02.jpg", 90),
+        ("PHOTO-2026-08-26-10-53-15.jpg", 0),
+    ],
+)
+def test_real_product_image_orientation(filename, expected):
+    image = cv2.imread(f"test_images/{filename}", cv2.IMREAD_COLOR)
+    assert image is not None
+    assert detect_orientation(image, lang="eng", psm=3) == expected
+
+
+def test_secondary_psm_runs_only_when_primary_evidence_is_insufficient(monkeypatch):
+    calls: list[str] = []
+
+    def fake_score(_image, degrees, _lang, config):
+        calls.append(config)
+        if "--psm 3" in config:
+            return 10.0 if degrees == 0 else 1.0
+        return 10.0 if degrees == 270 else 1.0
+
+    monkeypatch.setattr(orientation_module, "score_orientation", fake_score)
+    image = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    assert detect_orientation(image, lang="eng", psm=3) == 0
+    assert all("--psm 11" not in config for config in calls)
+
+    calls.clear()
+
+    def weak_primary_score(_image, degrees, _lang, config):
+        calls.append(config)
+        if "--psm 3" in config:
+            return 1.0
+        return 10.0 if degrees == 270 else 1.0
+
+    monkeypatch.setattr(orientation_module, "score_orientation", weak_primary_score)
+    assert detect_orientation(image, lang="eng", psm=3) == 270
+    assert any("--psm 11" in config for config in calls)
 
 
 @requires_tesseract

@@ -54,6 +54,22 @@ def test_address_like_line_rejected_as_product_name():
     assert fields[PRODUCT_NAME].detection_status == DetectionStatus.NOT_DETECTED
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Nutritional Information",
+        "Ingredients: Wheat Flour",
+        "Store in a cool dry place",
+        "Cooking Instructions: Boil for 5 minutes",
+        "INFORMATION",
+        "SPECIALITIES,",
+    ],
+)
+def test_product_name_rejects_non_title_packaging_text(text):
+    fields, _ = extract_single(text, y=20)
+    assert fields[PRODUCT_NAME].detection_status == DetectionStatus.NOT_DETECTED
+
+
 @pytest.mark.parametrize("text", ["MRP \u20b950", "M.R.P. Rs 50", "MRP: Rs. 50.00"])
 def test_mrp_canonical_forms_accepted(text):
     fields, _ = extract_single(text, y=400)
@@ -141,6 +157,12 @@ def test_unrelated_text_without_keyword_not_consumer_care():
 
 def test_stopword_rejected_as_manufacturer_name():
     fields, _ = extract_single("Mfd. ON", y=100)
+    assert fields[MANUFACTURER_NAME].detection_status == DetectionStatus.NOT_DETECTED
+
+
+@pytest.mark.parametrize("text", ["& Packed By", "COMMODITIES RULES 2011"])
+def test_entity_noise_is_not_assigned_as_a_manufacturer(text):
+    fields, _ = extract_single(text, y=100)
     assert fields[MANUFACTURER_NAME].detection_status == DetectionStatus.NOT_DETECTED
 
 

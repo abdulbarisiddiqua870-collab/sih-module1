@@ -162,6 +162,37 @@ def _union_bbox(boxes: list[list[int]]) -> list[int]:
     ]
 
 
+def _vertical_gap(first: OcrLine, second: OcrLine) -> int:
+    first_box = first.bounding_box
+    second_box = second.bounding_box
+    if first_box[1] <= second_box[3] and second_box[1] <= first_box[3]:
+        return 0
+    return max(first_box[1] - second_box[3], second_box[1] - first_box[3])
+
+
+def _horizontal_overlap_ratio(first: OcrLine, second: OcrLine) -> float:
+    overlap = max(0, min(first.bounding_box[2], second.bounding_box[2]) - max(first.bounding_box[0], second.bounding_box[0]))
+    width = min(first.bounding_box[2] - first.bounding_box[0], second.bounding_box[2] - second.bounding_box[0])
+    return overlap / width if width > 0 else 0.0
+
+
+def _lines_are_nearby(first: OcrLine, second: OcrLine) -> bool:
+    if _vertical_gap(first, second) == 0:
+        return True
+    max_gap = max(24, 2 * max(first.char_height_px, second.char_height_px))
+    return _vertical_gap(first, second) <= max_gap and _horizontal_overlap_ratio(first, second) >= 0.2
+
+
+def _clean_entity_name(value: str) -> str:
+    cleaned = clean_line(value.strip(" :-,"))
+    return re.sub(
+        r"^(?:and|&)\s+(?:packer|packed|packaged|pre[\s-]?packed?)\s*(?:by)?\s*[:\-]?\s*",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    ).strip(" :-,")
+
+
 class _Extractor:
     def __init__(self, ocr_result: OcrResult, image_height_px: int) -> None:
         self.lines = ocr_result.lines
@@ -172,6 +203,12 @@ class _Extractor:
 
     def free(self, index: int) -> bool:
         return index not in self.used and index < len(self.lines)
+
+    def nearby_next(self, index: int) -> tuple[int, OcrLine] | None:
+        next_index = index + 1
+        if not self.free(next_index) or not _lines_are_nearby(self.lines[index], self.lines[next_index]):
+            return None
+        return next_index, self.lines[next_index]
 
     def build(
         self,
@@ -327,10 +364,12 @@ class _Extractor:
                 continue
             date_match = DATE_RE.search(line.text)
             consumed = [index]
-            if not date_match and self.free(index + 1):
-                date_match = DATE_RE.search(self.lines[index + 1].text)
+            nearby = self.nearby_next(index)
+            if not date_match and nearby:
+                next_index, next_line = nearby
+                date_match = DATE_RE.search(next_line.text)
                 if date_match:
-                    consumed.append(index + 1)
+                    consumed.append(next_index)
             if not date_match:
                 continue
             verdict = validate_manufacture_date(date_match.group(0))
@@ -350,10 +389,13 @@ class _Extractor:
         index, match = found
         detail = clean_line(match.group(2).strip())
         consumed = [index]
-        if len(detail) < 2 and self.free(index + 1):
-            detail = clean_line(self.lines[index + 1].text)
-            if detail:
-                consumed.append(index + 1)
+        nearby = self.nearby_next(index)
+        if nearby and validate_best_before(detail).status != "accept":
+            next_index, next_line = nearby
+            next_detail = clean_line(next_line.text)
+            if validate_best_before(next_detail).status == "accept":
+                detail = next_detail
+                consumed.append(next_index)
         if not detail:
             return
         verdict = validate_best_before(detail)
@@ -382,7 +424,7 @@ class _Extractor:
                 continue
             window: list[int] = [index]
             for offset in (1, 2):
-                if self.free(index + offset):
+                if self.free(index + offset) and _lines_are_nearby(self.lines[index], self.lines[index + offset]):
                     window.append(index + offset)
             hit_index: int | None = None
             value: str | None = None
@@ -416,7 +458,7 @@ class _Extractor:
                 match = pattern.search(line.text)
                 if not match:
                     continue
-                name = clean_line(match.group(2).strip(" :-,"))
+                name = _clean_entity_name(match.group(2))
                 name_verdict = validate_entity_name(name) if name else None
                 if name is not None and name_verdict is not None and not name_verdict.usable:
                     name = None
@@ -424,6 +466,9 @@ class _Extractor:
                 cursor = index + 1
                 while cursor < len(self.lines) and len(address_parts) < 3 and cursor not in self.used:
                     candidate = self.lines[cursor]
+                    previous = self.lines[cursor - 1]
+                    if not _lines_are_nearby(previous, candidate):
+                        break
                     if any(p.search(candidate.text) for p in ENTITY_PATTERNS.values()):
                         break
                     if ADDRESS_STOP_RE.search(candidate.text):
@@ -440,7 +485,12 @@ class _Extractor:
                 evidence_lines = [self.lines[i] for i in consumed]
                 confidence = sum(l.confidence for l in evidence_lines) / len(evidence_lines)
                 if name:
-                    self.add(name_field, self.build(name, [self.lines[index]], line.confidence, verdict=name_verdict))
+                    entity_result = self.build(name, [self.lines[index]], line.confidence, verdict=name_verdict)
+                    self.add(name_field, entity_result)
+                    if entity_key == "manufacturer" and re.search(
+                        r"\b(?:and|&)\s*packed\s*by\b", line.text, re.IGNORECASE
+                    ):
+                        self.add(PACKER_NAME, entity_result.model_copy(deep=True))
                 if address:
                     self.add(address_field, self.build(address, evidence_lines, confidence))
                 break

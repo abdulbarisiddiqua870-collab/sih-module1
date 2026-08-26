@@ -48,12 +48,30 @@ FIELD_HEADER_RE = re.compile(
     r"\buse\s*b[oy]\b|\bexp(?:iry)?\b|\bunit\s*(?:sale\s*)?price\b|\bingredients?\b|"
     r"\bconsumer\s*care\b|\bcustomer\s*care\b|\bhelpline\b|\bcountry\s*of\s*origin\b|\bmade\s*in\b|"
     r"\bmanufactur\w*\b|\bmark(et)?ed\s*by\b|\bpacked?\b|\bmfg\b|\bmfd\b|\bstore\s*in\b|"
-    r"\bbatch\b|\blot\s*no\b|\blic(?:ence|ense)?\.?\s*no\b|\bfssai\b|\bmarketed\s*by\b",
+    r"\bbatch\b|\blot\s*no\b|\blic(?:ence|ense)?\.?\s*no\b|\bfssai\b|\bmarketed\s*by\b|"
+    r"\b(?:date|expiry|net\s*weight|storage|directions?|instructions?)\b",
     re.IGNORECASE,
 )
 BOILERPLATE_RE = re.compile(
     r"\bfssai\b|\blic(?:ence|ense)\b|\bgrievance\b|\bjurisdiction\b|\bsubject\s*to\b|"
     r"\bdisclaimer\b|\bterms\s*(?:and|&)\s*conditions\b|\bisoo?[\s-]?\d{3,}",
+    re.IGNORECASE,
+)
+PRODUCT_CONTENT_RE = re.compile(
+    r"\b(?:nutrition(?:al)?|ingredients?|energy|protein|carbohydrat\w*|sugars?|fat|sodium|"
+    r"dietary|serving|allergen|storage|store|cooking|cook|boil|prepar\w*|directions?|"
+    r"instructions?|contains?|contents?|transfer|rinse|cups?|water|methods?|serve|"
+    r"refrigerat\w*|once\s+opened|keep|fat\w*|minutes?|medium|heat)\b",
+    re.IGNORECASE,
+)
+GENERIC_HEADING_RE = re.compile(
+    r"^(?:information|specialit(?:y|ies)|ingredients?|nutrition(?:al)?|storage|instructions?)\s*[:\-.,]*$",
+    re.IGNORECASE,
+)
+ENTITY_NOISE_RE = re.compile(
+    r"\b(?:manufactur\w*|packer|packed|import\w*|commodities|rules|regulations?|"
+    r"instructions?|storage|ingredients?|fssai|licen[cs]e|marketed\s*by|address|"
+    r"rates?)\b",
     re.IGNORECASE,
 )
 PINCODE_RE = re.compile(r"\b\d{6}\b")
@@ -93,12 +111,16 @@ def validate_product_name(text: str) -> Verdict:
     stripped = text.strip()
     if len(stripped) < 3:
         return reject("too_short")
+    if GENERIC_HEADING_RE.fullmatch(stripped):
+        return reject("generic_heading")
     if TAX_PHRASE_RE.search(stripped):
         return reject("tax_statement")
     if FIELD_HEADER_RE.search(stripped):
         return reject("field_header_or_boilerplate")
     if BOILERPLATE_RE.search(stripped):
         return reject("legal_boilerplate")
+    if PRODUCT_CONTENT_RE.search(stripped):
+        return reject("product_content_or_instruction")
     if EMAIL_SHAPE_RE.search(stripped) or URL_SHAPE_RE.search(stripped):
         return reject("contact_info")
     if PHONE_SHAPE_RE.search(stripped.replace(" ", "")):
@@ -107,10 +129,22 @@ def validate_product_name(text: str) -> Verdict:
         return reject("address_like")
     if len(set(ADDRESS_HINT_RE.findall(stripped))) >= 2:
         return reject("address_like")
-    if DATE_SHAPE_RE.search(stripped) and not _alpha_tokens(stripped):
+    if DATE_SHAPE_RE.search(stripped) or re.search(
+        r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s./-]*20\d{2}",
+        stripped,
+        re.IGNORECASE,
+    ):
         return reject("date_like")
-    if QTY_SHAPE_RE.fullmatch(stripped.strip(" .,")):
+    if QTY_SHAPE_RE.search(stripped):
         return reject("quantity_like")
+    if PRICEY_RE.search(stripped):
+        return reject("price_like")
+    if (
+        (ADDRESS_HINT_RE.search(stripped) and ("," in stripped or any(ch.isdigit() for ch in stripped)))
+        or stripped.count(",") >= 1
+        or re.search(r"\b(?:m/s|pvt\.?|ltd\.?|limited|llp|inc\.?)\b", stripped, re.IGNORECASE)
+    ):
+        return reject("address_like")
     tokens = _alpha_tokens(stripped)
     if not tokens:
         return reject("no_alphabetic_content")
@@ -121,10 +155,8 @@ def validate_product_name(text: str) -> Verdict:
     letter_ratio = letters / nonspace
     if letter_ratio < 0.4:
         return weak("low_letter_ratio")
-    if PRICEY_RE.search(stripped):
-        return weak("contains_price")
     digits = sum(ch.isdigit() for ch in stripped)
-    if digits / nonspace > 0.34:
+    if digits / nonspace > 0.2:
         return weak("digit_heavy")
     if len(tokens) == 1:
         return accept("descriptive_title") if len(tokens[0]) >= 4 else weak("single_short_token")
@@ -173,6 +205,10 @@ def validate_entity_name(name: str) -> Verdict:
         return reject("name_too_short")
     if ENTITY_STOPWORD_RE.fullmatch(stripped):
         return reject("stopword_not_a_name")
+    if ENTITY_NOISE_RE.search(stripped):
+        return reject("entity_label_or_boilerplate")
+    if re.search(r"\b(?:pvt\.?|ltd\.?|limited|llp|inc\.?)\b", stripped, re.IGNORECASE) and NAME_NOISE_RE.search(stripped):
+        return reject("entity_noise")
     if not any(ch.isalpha() for ch in stripped):
         return reject("no_alphabetic_content")
     if NAME_NOISE_RE.search(stripped):

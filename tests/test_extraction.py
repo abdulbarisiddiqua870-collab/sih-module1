@@ -10,6 +10,7 @@ from module1.models.schemas import (
     MANUFACTURE_PACK_IMPORT_DATE,
     MRP,
     NET_QUANTITY,
+    PACKER_NAME,
     PRODUCT_NAME,
     UNIT_SALE_PRICE,
     KNOWN_FIELDS,
@@ -77,6 +78,25 @@ def test_best_before_captured():
     assert fields[BEST_BEFORE_USE_BY].detection_status == DetectionStatus.DETECTED
 
 
+@pytest.mark.parametrize("text", ["Best Before: MRP", "Best Before: Net Weight 2009"])
+def test_best_before_without_date_or_duration_is_not_detected(text):
+    fields, _ = extract_fields(make_result([make_line(text, y=500)]), image_height_px=1000)
+    assert fields[BEST_BEFORE_USE_BY].detection_status != DetectionStatus.DETECTED
+
+
+def test_best_before_uses_nearby_valid_value():
+    lines = [make_line("Best Before:", y=500), make_line("6 months from packaging", y=530)]
+    fields, _ = extract_fields(make_result(lines), image_height_px=1000)
+    assert fields[BEST_BEFORE_USE_BY].value == "6 months from packaging"
+    assert fields[BEST_BEFORE_USE_BY].detection_status == DetectionStatus.DETECTED
+
+
+def test_best_before_does_not_use_distant_value():
+    lines = [make_line("Best Before:", y=100), make_line("6 months from packaging", y=500)]
+    fields, _ = extract_fields(make_result(lines), image_height_px=1000)
+    assert fields[BEST_BEFORE_USE_BY].detection_status == DetectionStatus.NOT_DETECTED
+
+
 def test_country_of_origin():
     line = make_line("Country of Origin: India", y=600)
     fields, _ = extract_fields(make_result([line]), image_height_px=1000)
@@ -113,6 +133,25 @@ def test_manufacturer_name_and_multiline_address():
     assert fields[MANUFACTURER_ADDRESS].value is not None
     assert "Plot 42" in fields[MANUFACTURER_ADDRESS].value
     assert "201305" in fields[MANUFACTURER_ADDRESS].value
+
+
+def test_combined_manufacturer_and_packer_label_extracts_entity_name():
+    line = make_line("Manufactured and Packed By: Example Foods Ltd.", y=100)
+    fields, _ = extract_fields(make_result([line]), image_height_px=1000)
+    assert fields[MANUFACTURER_NAME].value == "Example Foods Ltd."
+    assert fields[PACKER_NAME].value == "Example Foods Ltd."
+
+
+def test_entity_role_fragment_is_not_a_manufacturer_name():
+    line = make_line("Manufactured & Packed By", y=100)
+    fields, _ = extract_fields(make_result([line]), image_height_px=1000)
+    assert fields[MANUFACTURER_NAME].detection_status == DetectionStatus.NOT_DETECTED
+
+
+def test_regulatory_entity_text_is_not_a_company_name():
+    line = make_line("Packed Commodities Rules 2011", y=100)
+    fields, _ = extract_fields(make_result([line]), image_height_px=1000)
+    assert fields[PACKER_NAME].detection_status == DetectionStatus.NOT_DETECTED
 
 
 def test_low_confidence_field_marked_uncertain():

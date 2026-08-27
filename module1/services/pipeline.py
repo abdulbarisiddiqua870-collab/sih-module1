@@ -11,7 +11,7 @@ from module1.core.errors import ErrorCode, PipelineError
 from module1.extraction.parser import extract_fields
 from module1.models.schemas import ExtractionResponse, ImageInfo, MetadataInfo
 from module1.ocr.engine import OcrEngine
-from module1.preprocessing.images import decode_image, preprocess
+from module1.preprocessing.images import decode_image, preprocess, read_image_dimensions
 from module1.preprocessing.quality import assess_quality
 
 
@@ -28,24 +28,36 @@ class ExtractionPipeline:
     def run(self, data: bytes, filename: str) -> ExtractionResponse:
         started = time.perf_counter()
         self._validate_upload(data, filename)
-
-        original = decode_image(data)
-        if original is None:
-            raise PipelineError(ErrorCode.INVALID_IMAGE, "File bytes could not be decoded as an image")
-
-        quality = assess_quality(original)
-        processed, operations = preprocess(original)
-
         try:
+            dimensions = read_image_dimensions(data)
+            if dimensions is None:
+                raise PipelineError(ErrorCode.INVALID_IMAGE, "File bytes could not be decoded as an image")
+            width, height = dimensions
+            if max(width, height) > settings.max_image_dimension:
+                raise PipelineError(ErrorCode.FILE_TOO_LARGE, "Image dimensions exceed the supported limit")
+            if width * height > settings.max_image_dimension**2:
+                raise PipelineError(ErrorCode.FILE_TOO_LARGE, "Image pixel count exceeds the supported limit")
+
+            original = decode_image(data)
+            if original is None:
+                raise PipelineError(ErrorCode.INVALID_IMAGE, "File bytes could not be decoded as an image")
+            quality = assess_quality(original)
+            processed, operations = preprocess(original)
             ocr_result = self.engine.run(processed)
+            fields, unmapped = extract_fields(ocr_result, image_height_px=processed.shape[0])
         except pytesseract.TesseractNotFoundError as exc:
             raise PipelineError(
                 ErrorCode.OCR_UNAVAILABLE,
                 "Tesseract OCR engine is not installed or not on PATH. "
                 f"Install the tesseract binary and retry. Detail: {exc}",
             ) from exc
-
-        fields, unmapped = extract_fields(ocr_result, image_height_px=processed.shape[0])
+        except PipelineError:
+            raise
+        except Exception as exc:
+            raise PipelineError(
+                ErrorCode.PROCESSING_ERROR,
+                "Image processing could not be completed",
+            ) from exc
         elapsed_ms = round((time.perf_counter() - started) * 1000.0, 2)
 
         return ExtractionResponse(

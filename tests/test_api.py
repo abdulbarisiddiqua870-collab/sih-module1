@@ -1,4 +1,9 @@
+from io import BytesIO
+
+from PIL import Image
+
 from module1.core.config import settings
+from module1.services.pipeline import pipeline
 from tests.conftest import label_png_bytes, requires_tesseract
 
 
@@ -28,10 +33,33 @@ def test_extract_rejects_oversized_file(client):
     assert response.json()["error"]["code"] == "FILE_TOO_LARGE"
 
 
+def test_extract_rejects_image_dimensions_before_decode(client):
+    image_data = BytesIO()
+    Image.new("RGB", (settings.max_image_dimension + 1, 1), "white").save(image_data, format="PNG")
+    response = client.post("/api/v1/extract", files={"file": ("wide.png", image_data.getvalue())})
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "FILE_TOO_LARGE"
+
+
 def test_extract_rejects_invalid_image_bytes(client):
     response = client.post("/api/v1/extract", files={"file": ("fake.png", b"this is not an image")})
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "INVALID_IMAGE"
+
+
+def test_extract_returns_structured_error_for_unexpected_runtime_failure(client, monkeypatch):
+    class FailingEngine:
+        def run(self, _image):
+            raise RuntimeError("internal test detail")
+
+    monkeypatch.setattr(pipeline, "_engine", FailingEngine())
+    response = client.post("/api/v1/extract", files={"file": ("label.png", label_png_bytes())})
+    assert response.status_code == 500
+    assert response.json() == {
+        "success": False,
+        "error": {"code": "PROCESSING_ERROR", "message": "Image processing could not be completed"},
+    }
+    assert "internal test detail" not in response.text
 
 
 @requires_tesseract

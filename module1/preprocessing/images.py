@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from io import BytesIO
+
 import cv2
 import numpy as np
+from PIL import Image
 
 from module1.core.config import settings
 
@@ -9,6 +12,15 @@ from module1.core.config import settings
 def decode_image(data: bytes) -> np.ndarray | None:
     array = np.frombuffer(data, dtype=np.uint8)
     return cv2.imdecode(array, cv2.IMREAD_COLOR)
+
+
+def read_image_dimensions(data: bytes) -> tuple[int, int] | None:
+    """Read image dimensions from the header without decoding pixel data."""
+    try:
+        with Image.open(BytesIO(data)) as image:
+            return image.size
+    except Exception:
+        return None
 
 
 def enforce_bounds(image: np.ndarray) -> np.ndarray:

@@ -1,0 +1,75 @@
+[
+  {
+    "name": "Test 1 - Fully compliant label",
+    "expected_status": "LIKELY_COMPLIANT",
+    "input": {
+      "product_name": { "value": "ABC Biscuits", "confidence": 0.95 },
+      "mrp": { "value": "₹50", "confidence": 0.96 },
+      "net_quantity": { "value": "100 g", "confidence": 0.93 },
+      "manufacturer": { "value": "ABC Foods Pvt Ltd, Mumbai", "confidence": 0.92 },
+      "manufacturing_date": { "value": "08/2026", "confidence": 0.91 },
+      "consumer_care": { "value": "1800-XXX-XXXX", "confidence": 0.91 }
+    }
+  },
+  {
+    "name": "Test 2 - Missing MRP",
+    "expected_status": "HIGH_PRIORITY_REVIEW",
+    "input": {
+      "product_name": { "value": "ABC Biscuits", "confidence": 0.95 },
+      "mrp": { "value": null, "confidence": 0.0 },
+      "net_quantity": { "value": "100 g", "confidence": 0.93 },
+      "manufacturer": { "value": "ABC Foods Pvt Ltd, Mumbai", "confidence": 0.92 },
+      "manufacturing_date": { "value": "08/2026", "confidence": 0.91 },
+      "consumer_care": { "value": "1800-XXX-XXXX", "confidence": 0.91 }
+    }
+  },
+  {
+    "name": "Test 3 - Missing net quantity",
+    "expected_status": "HIGH_PRIORITY_REVIEW",
+    "input": {
+      "product_name": { "value": "ABC Biscuits", "confidence": 0.95 },
+      "mrp": { "value": "₹50", "confidence": 0.96 },
+      "net_quantity": { "value": null, "confidence": 0.0 },
+      "manufacturer": { "value": "ABC Foods Pvt Ltd, Mumbai", "confidence": 0.92 },
+      "manufacturing_date": { "value": "08/2026", "confidence": 0.91 },
+      "consumer_care": { "value": "1800-XXX-XXXX", "confidence": 0.91 }
+    }
+  },
+  {
+    "name": "Test 4 - Low OCR confidence on manufacturer",
+    "expected_status": "REVIEW_REQUIRED",
+    "input": {
+      "product_name": { "value": "ABC Biscuits", "confidence": 0.95 },
+      "mrp": { "value": "₹50", "confidence": 0.96 },
+      "net_quantity": { "value": "100 g", "confidence": 0.93 },
+      "manufacturer": { "value": "ABC F00ds??", "confidence": 0.42 },
+      "manufacturing_date": { "value": "08/2026", "confidence": 0.91 },
+      "consumer_care": { "value": "1800-XXX-XXXX", "confidence": 0.91 }
+    }
+  },
+  {
+    "name": "Test 5 - Conflicting net quantity across panels",
+    "expected_status": "REVIEW_REQUIRED",
+    "input": {
+      "product_name": { "value": "ABC Biscuits", "confidence": 0.95 },
+      "mrp": { "value": "₹50", "confidence": 0.96 },
+      "net_quantity": { "value": "100 g", "confidence": 0.93 },
+      "manufacturer": { "value": "ABC Foods Pvt Ltd, Mumbai", "confidence": 0.92 },
+      "manufacturing_date": { "value": "08/2026", "confidence": 0.91 },
+      "consumer_care": { "value": "1800-XXX-XXXX", "confidence": 0.91 },
+      "duplicate_readings": { "net_quantity": ["100 g", "200 g"] }
+    }
+  },
+  {
+    "name": "Test 6 - Multiple violations",
+    "expected_status": "HIGH_PRIORITY_REVIEW",
+    "input": {
+      "product_name": { "value": null, "confidence": 0.0 },
+      "mrp": { "value": "fifty rupees", "confidence": 0.55 },
+      "net_quantity": { "value": null, "confidence": 0.0 },
+      "manufacturer": { "value": "ABC Foods Pvt Ltd, Mumbai", "confidence": 0.92 },
+      "manufacturing_date": { "value": null, "confidence": 0.0 },
+      "consumer_care": { "value": null, "confidence": 0.0 }
+    }
+  }
+]

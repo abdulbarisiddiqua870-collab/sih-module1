@@ -1,0 +1,9 @@
+{
+  "product_name": { "value": "ABC Biscuits", "confidence": 0.95 },
+  "mrp": { "value": "₹50", "confidence": 0.96 },
+  "net_quantity": { "value": "100 g", "confidence": 0.93 },
+  "manufacturer": { "value": "ABC Foods Pvt Ltd, Mumbai", "confidence": 0.89 },
+  "manufacturing_date": { "value": "08/2026", "confidence": 0.91 },
+  "consumer_care": { "value": "1800-XXX-XXXX", "confidence": 0.91 },
+  "product_category": "packaged_food"
+}

@@ -1,0 +1,54 @@
+{
+  "packaged_food": {
+    "rule_source": "Legal Metrology (Packaged Commodities) Rules, 2011 - Rule 6 (prototype mapping)",
+    "version": "0.1-prototype",
+    "note": "PROTOTYPE RULES ONLY. Verify against current official notifications/amendments before any real enforcement use.",
+    "rules": [
+      {
+        "id": "R001",
+        "field": "product_name",
+        "required": true,
+        "severity": "MEDIUM",
+        "description": "Common/generic name of the commodity must be declared."
+      },
+      {
+        "id": "R002",
+        "field": "mrp",
+        "required": true,
+        "severity": "HIGH",
+        "description": "Maximum Retail Price (inclusive of all taxes) must be declared.",
+        "format_regex": "^(₹|Rs\\.?|INR)\\s?\\d+(\\.\\d{1,2})?$"
+      },
+      {
+        "id": "R003",
+        "field": "net_quantity",
+        "required": true,
+        "severity": "HIGH",
+        "description": "Net quantity must be declared in standard units (g/kg/ml/l/number).",
+        "format_regex": "^\\d+(\\.\\d+)?\\s?(g|kg|ml|l|gm|gms|litre|litres)$"
+      },
+      {
+        "id": "R004",
+        "field": "manufacturer",
+        "required": true,
+        "severity": "HIGH",
+        "description": "Name and address of manufacturer/packer/importer must be declared."
+      },
+      {
+        "id": "R005",
+        "field": "consumer_care",
+        "required": true,
+        "severity": "MEDIUM",
+        "description": "Consumer care name/address/telephone/email must be declared."
+      },
+      {
+        "id": "R006",
+        "field": "manufacturing_date",
+        "required": true,
+        "severity": "HIGH",
+        "description": "Month and year of manufacture/packing/import must be declared.",
+        "format_regex": "^(0[1-9]|1[0-2])[/-]\\d{4}$"
+      }
+    ]
+  }
+}

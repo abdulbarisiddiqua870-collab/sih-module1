@@ -65,6 +65,7 @@ include stack traces or filesystem details.
 
 - Supported filename extensions are `.jpg`, `.jpeg`, and `.png`.
 - Maximum upload size is 20 MiB by default.
+- Images with a shortest dimension below 100 pixels are rejected by the web collector.
 - Maximum image dimension is 4096 pixels; images exceeding the corresponding pixel limit are rejected.
 - OCR quality varies with blur, glare, perspective, dense packaging, and small text.
 - Confidence is heuristic and is not a calibrated probability.
@@ -84,6 +85,41 @@ image is legible. Omitted fields are unknown, not negative labels. Exact and
 conservative normalized matches are reported separately from missing,
 incorrect, and uncertain values. The small local benchmark is useful for
 regression comparison, not a production accuracy guarantee.
+
+## Web Dataset Collection
+
+The standalone collector keeps downloaded images separate from `test_images/`
+and does not change the Module 1 pipeline. Create a manifest such as:
+
+```json
+[
+  {"url": "https://example.test/label.jpg", "category": "biscuits"}
+]
+```
+
+Run it with:
+
+```sh
+.venv/bin/python scripts/collect_web_dataset.py urls.json --output-dir web
+```
+
+For automated discovery, set a SerpApi Google Images key and run, for example:
+
+```sh
+SERPAPI_API_KEY=... .venv/bin/python scripts/discover_web_dataset.py --dry-run --max-images 10
+```
+
+The discovery command requires that external provider credential; without it
+the command reports `not_configured` and does not invent or download URLs.
+
+Images are stored under `web/<category>/`. Duplicate downloads are identified
+by SHA-256 and are not stored twice. `web/metadata.json` contains per-source
+download, resolution, quality, OCR, detected-field, and timing metadata;
+`web/report.json` contains aggregate counts. Only the existing `.jpg`, `.jpeg`,
+and `.png` pipeline inputs are processed; unsupported or failed downloads are
+reported without being silently converted. Usable images must pass the existing
+resolution check and have a quality score of at least `0.35`; filename
+collisions are renamed rather than overwritten.
 
 ## Deployment and Security
 

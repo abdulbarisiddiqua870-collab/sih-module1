@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "normalization": {
+    "text": "trim whitespace, collapse internal whitespace, lowercase, and remove punctuation at comparison boundaries",
+    "numeric_fields": ["mrp", "unit_sale_price"]
+  },
+  "images": [
+    {
+      "filename": "sample_label.png",
+      "condition": "clear synthetic label",
+      "ground_truth_basis": "All asserted values are legible in the rendered label source.",
+      "expected": {
+        "product_name": "CRISPY POTATO CHIPS",
+        "manufacturer_name": "SnackWorks Foods Pvt. Ltd.",
+        "manufacturer_address": "Plot 42, Industrial Area Phase 2, Noida, Uttar Pradesh 201305",
+        "country_of_origin": "India",
+        "net_quantity": "52 g",
+        "mrp": "50.00",
+        "manufacture_pack_import_date": "08/2026",
+        "best_before_use_by": "4 months from packaging",
+        "consumer_care": "1800-123-4567",
+        "unit_sale_price": "0.96"
+      }
+    },
+    {
+      "filename": "sample_label_dark.png",
+      "condition": "darker synthetic label",
+      "ground_truth_basis": "Same rendered label content as sample_label.png; all asserted values remain legible.",
+      "expected": {
+        "product_name": "CRISPY POTATO CHIPS",
+        "manufacturer_name": "SnackWorks Foods Pvt. Ltd.",
+        "manufacturer_address": "Plot 42, Industrial Area Phase 2, Noida, Uttar Pradesh 201305",
+        "country_of_origin": "India",
+        "net_quantity": "52 g",
+        "mrp": "50.00",
+        "manufacture_pack_import_date": "08/2026",
+        "best_before_use_by": "4 months from packaging",
+        "consumer_care": "1800-123-4567",
+        "unit_sale_price": "0.96"
+      }
+    },
+    {
+      "filename": "sample_label_blurry.png",
+      "condition": "blurred synthetic label",
+      "ground_truth_basis": "The source is visibly blurred; no field value is asserted for scoring.",
+      "expected": {}
+    },
+    {
+      "filename": "images.jpeg",
+      "condition": "clear dense label",
+      "ground_truth_basis": "Values are directly legible in the label image.",
+      "expected": {
+        "product_name": "Barcode Label",
+        "net_quantity": "250 g",
+        "mrp": "120",
+        "manufacture_pack_import_date": "24/04/2023",
+        "best_before_use_by": "90 Days from MFG Date",
+        "consumer_care": "9727955514"
+      }
+    },
+    {
+      "filename": "images-2.jpeg",
+      "condition": "small text label",
+      "ground_truth_basis": "The product name, quantity, price, and dates are directly legible.",
+      "expected": {
+        "product_name": "APPLE SLICE",
+        "net_quantity": "250 g",
+        "mrp": "150",
+        "manufacture_pack_import_date": "09/05/2025",
+        "best_before_use_by": "14/05/2025"
+      }
+    },
+    {
+      "filename": "fmcglabelsmanufacturer.jpg",
+      "condition": "dense manufacturer label",
+      "ground_truth_basis": "The manufacturer, quantity, and customer-care number are legible in the image.",
+      "expected": {
+        "manufacturer_name": "GOPALJEE DAIRY FOODS PVT. LTD.",
+        "net_quantity": "200 ml",
+        "consumer_care": "1800-102-8397"
+      }
+    },
+    {
+      "filename": "PHOTO-2026-08-26-10-52-39.jpg",
+      "condition": "rotated difficult package",
+      "ground_truth_basis": "After mentally rotating the source image, only the MRP and net weight are unambiguous; other text is not asserted.",
+      "expected": {
+        "net_quantity": "15 g",
+        "mrp": "75.00"
+      }
+    }
+  ]
+}
